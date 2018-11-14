@@ -572,7 +572,7 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 // parseSequenceOf is used for SEQUENCE OF and SET OF values. It tries to parse
 // a number of ASN.1 values from the given byte slice and returns them as a
 // slice of Go values of the given type.
-func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type) (ret reflect.Value, err error) {
+func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type, params fieldParameters) (ret reflect.Value, err error) {
 	matchAny, expectedTag, compoundType, ok := getUniversalType(elemType)
 	if !ok {
 		err = StructuralError{"unknown Go type for slice"}
@@ -599,7 +599,7 @@ func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type
 			t.tag = TagUTCTime
 		}
 
-		if !matchAny && (t.class != ClassUniversal || t.isCompound != compoundType || t.tag != expectedTag) {
+		if !matchAny && (t.class != ClassUniversal || t.isCompound != compoundType || t.tag != expectedTag) && !params.choice {
 			err = StructuralError{"sequence tag mismatch"}
 			return
 		}
@@ -611,10 +611,10 @@ func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type
 		numElements++
 	}
 	ret = reflect.MakeSlice(sliceType, numElements, numElements)
-	params := fieldParameters{}
+	fp := fieldParameters{choice: params.choice}
 	offset := 0
 	for i := 0; i < numElements; i++ {
-		offset, err = parseField(ret.Index(i), bytes, offset, params)
+		offset, err = parseField(ret.Index(i), bytes, offset, fp)
 		if err != nil {
 			return
 		}
@@ -800,8 +800,8 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 	}
 
 	// We have unwrapped any explicit tagging at this point.
-	if !matchAnyClassAndTag && (t.class != expectedClass || t.tag != expectedTag) ||
-		(!matchAny && t.isCompound != compoundType) {
+	if (!matchAnyClassAndTag && (t.class != expectedClass || t.tag != expectedTag) ||
+		(!matchAny && t.isCompound != compoundType)) && !params.choice {
 		// Tags don't match. Again, it could be an optional element.
 		ok := setDefaultValue(v, params)
 		if ok {
@@ -913,6 +913,17 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 		innerOffset := 0
 		for i := 0; i < structType.NumField(); i++ {
 			field := structType.Field(i)
+			if params.choice {
+				tag := parseFieldParameters(field.Tag.Get("asn1")).tag
+				if tag != nil && t.tag == *tag || t.class != ClassContextSpecific && tag == nil {
+					if tag == nil || params.set {
+						innerBytes = bytes[initOffset:offset]
+					}
+					innerOffset, err = parseField(val.Field(i), innerBytes, innerOffset, fieldParameters{})
+					return
+				}
+				continue
+			}
 			if i == 0 && field.Type == rawContentsType {
 				continue
 			}
@@ -932,7 +943,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 			reflect.Copy(val, reflect.ValueOf(innerBytes))
 			return
 		}
-		newSlice, err1 := parseSequenceOf(innerBytes, sliceType, sliceType.Elem())
+		newSlice, err1 := parseSequenceOf(innerBytes, sliceType, sliceType.Elem(), params)
 		if err1 == nil {
 			val.Set(newSlice)
 		}

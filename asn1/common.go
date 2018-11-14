@@ -74,6 +74,7 @@ type tagAndLength struct {
 type fieldParameters struct {
 	optional     bool   // true iff the field is OPTIONAL
 	explicit     bool   // true iff an EXPLICIT tag is in use.
+	choice       bool   // true iff CHOICE tag is in use.
 	application  bool   // true iff an APPLICATION tag is in use.
 	private      bool   // true iff a PRIVATE tag is in use.
 	defaultValue *int64 // a default value for INTEGER typed fields (maybe nil).
@@ -100,6 +101,8 @@ func parseFieldParameters(str string) (ret fieldParameters) {
 			if ret.tag == nil {
 				ret.tag = new(int)
 			}
+		case part == "choice":
+			ret.choice = true
 		case part == "generalized":
 			ret.timeType = TagGeneralizedTime
 		case part == "utc":

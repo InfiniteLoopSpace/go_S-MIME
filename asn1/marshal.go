@@ -480,7 +480,11 @@ func makeBody(value reflect.Value, params fieldParameters) (e encoder, err error
 		default:
 			m := make([]encoder, n1)
 			for i := 0; i < n1; i++ {
-				m[i], err = makeField(v.Field(i+startingField), parseFieldParameters(t.Field(i+startingField).Tag.Get("asn1")))
+				fp := parseFieldParameters(t.Field(i + startingField).Tag.Get("asn1"))
+				if params.explicit && params.choice {
+					fp.explicit = true
+				}
+				m[i], err = makeField(v.Field(i+startingField), fp)
 				if err != nil {
 					return nil, err
 				}
@@ -495,6 +499,10 @@ func makeBody(value reflect.Value, params fieldParameters) (e encoder, err error
 		}
 
 		var fp fieldParameters
+		fp.choice = params.choice
+		if params.choice && params.set {
+			fp.explicit = true
+		}
 
 		switch l := v.Len(); l {
 		case 0:
@@ -640,6 +648,10 @@ func makeField(v reflect.Value, params fieldParameters) (e encoder, err error) {
 		if params.explicit {
 			t.tag = bytesEncoder(appendTagAndLength(t.scratch[:0], tagAndLength{ClassUniversal, tag, bodyLen, isCompound}))
 
+			if params.choice {
+				t.tag = bytesEncoder(nil)
+			}
+
 			tt := new(taggedEncoder)
 
 			tt.body = t
@@ -659,6 +671,10 @@ func makeField(v reflect.Value, params fieldParameters) (e encoder, err error) {
 	}
 
 	t.tag = bytesEncoder(appendTagAndLength(t.scratch[:0], tagAndLength{class, tag, bodyLen, isCompound}))
+
+	if tag == TagSequence && params.choice {
+		t.tag = bytesEncoder(nil)
+	}
 
 	return t, nil
 }
