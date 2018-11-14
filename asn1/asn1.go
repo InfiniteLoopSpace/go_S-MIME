@@ -20,31 +20,31 @@ package asn1
 // everything by any means.
 
 import (
+	"encoding/asn1"
 	"errors"
 	"fmt"
 	"log"
 	"math"
 	"math/big"
 	"reflect"
-	"strconv"
 	"time"
 	"unicode/utf8"
 )
 
 // A StructuralError suggests that the ASN.1 data is valid, but the Go type
 // which is receiving it doesn't match.
-type StructuralError struct {
-	Msg string
-}
+//type StructuralError struct {
+//	Msg string
+//}
 
-func (e StructuralError) Error() string { return "asn1: structure error: " + e.Msg }
+//func (e StructuralError) Error() string { return "asn1: structure error: " + e.Msg }
 
 // A SyntaxError suggests that the ASN.1 data is invalid.
-type SyntaxError struct {
-	Msg string
-}
+//type SyntaxError struct {
+//	Msg string
+//}
 
-func (e SyntaxError) Error() string { return "asn1: syntax error: " + e.Msg }
+//func (e SyntaxError) Error() string { return "asn1: syntax error: " + e.Msg }
 
 // We start by dealing with each of the primitive types in turn.
 
@@ -52,7 +52,7 @@ func (e SyntaxError) Error() string { return "asn1: syntax error: " + e.Msg }
 
 func parseBool(bytes []byte) (ret bool, err error) {
 	if len(bytes) != 1 {
-		err = SyntaxError{"invalid boolean"}
+		err = asn1.SyntaxError{"invalid boolean"}
 		return
 	}
 
@@ -65,7 +65,7 @@ func parseBool(bytes []byte) (ret bool, err error) {
 	case 0xff:
 		ret = true
 	default:
-		err = SyntaxError{"invalid boolean"}
+		err = asn1.SyntaxError{"invalid boolean"}
 	}
 
 	return
@@ -77,13 +77,13 @@ func parseBool(bytes []byte) (ret bool, err error) {
 // INTEGER and an error otherwise.
 func checkInteger(bytes []byte) error {
 	if len(bytes) == 0 {
-		return StructuralError{"empty integer"}
+		return asn1.StructuralError{"empty integer"}
 	}
 	if len(bytes) == 1 {
 		return nil
 	}
 	if (bytes[0] == 0 && bytes[1]&0x80 == 0) || (bytes[0] == 0xff && bytes[1]&0x80 == 0x80) {
-		return StructuralError{"integer not minimally-encoded"}
+		return asn1.StructuralError{"integer not minimally-encoded"}
 	}
 	return nil
 }
@@ -97,7 +97,7 @@ func parseInt64(bytes []byte) (ret int64, err error) {
 	}
 	if len(bytes) > 8 {
 		// We'll overflow an int64 in this case.
-		err = StructuralError{"integer too large"}
+		err = asn1.StructuralError{"integer too large"}
 		return
 	}
 	for bytesRead := 0; bytesRead < len(bytes); bytesRead++ {
@@ -122,7 +122,7 @@ func parseInt32(bytes []byte) (int32, error) {
 		return 0, err
 	}
 	if ret64 != int64(int32(ret64)) {
-		return 0, StructuralError{"integer too large"}
+		return 0, asn1.StructuralError{"integer too large"}
 	}
 	return int32(ret64), nil
 }
@@ -156,51 +156,51 @@ func parseBigInt(bytes []byte) (*big.Int, error) {
 // BitString is the structure to use when you want an ASN.1 BIT STRING type. A
 // bit string is padded up to the nearest byte in memory and the number of
 // valid bits is recorded. Padding bits will be zero.
-type BitString struct {
-	Bytes     []byte // bits packed into bytes.
-	BitLength int    // length in bits.
-}
+//type BitString struct {
+//	Bytes     []byte // bits packed into bytes.
+//	BitLength int    // length in bits.
+//}
 
 // At returns the bit at the given index. If the index is out of range it
 // returns false.
-func (b BitString) At(i int) int {
-	if i < 0 || i >= b.BitLength {
-		return 0
-	}
-	x := i / 8
-	y := 7 - uint(i%8)
-	return int(b.Bytes[x]>>y) & 1
-}
+//func (b BitString) At(i int) int {
+//	if i < 0 || i >= b.BitLength {
+//		return 0
+//	}
+//	x := i / 8
+//	y := 7 - uint(i%8)
+//	return int(b.Bytes[x]>>y) & 1
+//}
 
 // RightAlign returns a slice where the padding bits are at the beginning. The
 // slice may share memory with the BitString.
-func (b BitString) RightAlign() []byte {
-	shift := uint(8 - (b.BitLength % 8))
-	if shift == 8 || len(b.Bytes) == 0 {
-		return b.Bytes
-	}
-
-	a := make([]byte, len(b.Bytes))
-	a[0] = b.Bytes[0] >> shift
-	for i := 1; i < len(b.Bytes); i++ {
-		a[i] = b.Bytes[i-1] << (8 - shift)
-		a[i] |= b.Bytes[i] >> shift
-	}
-
-	return a
-}
+//func (b BitString) RightAlign() []byte {
+//	shift := uint(8 - (b.BitLength % 8))
+//	if shift == 8 || len(b.Bytes) == 0 {
+//		return b.Bytes
+//	}
+//
+//	a := make([]byte, len(b.Bytes))
+//	a[0] = b.Bytes[0] >> shift
+//	for i := 1; i < len(b.Bytes); i++ {
+//		a[i] = b.Bytes[i-1] << (8 - shift)
+//		a[i] |= b.Bytes[i] >> shift
+//	}
+//
+//	return a
+//}
 
 // parseBitString parses an ASN.1 bit string from the given byte slice and returns it.
-func parseBitString(bytes []byte) (ret BitString, err error) {
+func parseBitString(bytes []byte) (ret asn1.BitString, err error) {
 	if len(bytes) == 0 {
-		err = SyntaxError{"zero length BIT STRING"}
+		err = asn1.SyntaxError{"zero length BIT STRING"}
 		return
 	}
 	paddingBits := int(bytes[0])
 	if paddingBits > 7 ||
 		len(bytes) == 1 && paddingBits > 0 ||
 		bytes[len(bytes)-1]&((1<<bytes[0])-1) != 0 {
-		err = SyntaxError{"invalid padding bits in BIT STRING"}
+		err = asn1.SyntaxError{"invalid padding bits in BIT STRING"}
 		return
 	}
 	ret.BitLength = (len(bytes)-1)*8 - paddingBits
@@ -211,49 +211,49 @@ func parseBitString(bytes []byte) (ret BitString, err error) {
 // NULL
 
 // NullRawValue is a RawValue with its Tag set to the ASN.1 NULL type tag (5).
-var NullRawValue = RawValue{Tag: TagNull}
+//var NullRawValue = RawValue{Tag: TagNull}
 
 // NullBytes contains bytes representing the DER-encoded ASN.1 NULL type.
-var NullBytes = []byte{TagNull, 0}
+//var NullBytes = []byte{TagNull, 0}
 
 // OBJECT IDENTIFIER
 
 // An ObjectIdentifier represents an ASN.1 OBJECT IDENTIFIER.
-type ObjectIdentifier []int
+//type ObjectIdentifier []int
 
 // Equal reports whether oi and other represent the same identifier.
-func (oi ObjectIdentifier) Equal(other ObjectIdentifier) bool {
-	if len(oi) != len(other) {
-		return false
-	}
-	for i := 0; i < len(oi); i++ {
-		if oi[i] != other[i] {
-			return false
-		}
-	}
+//func (oi ObjectIdentifier) Equal(other ObjectIdentifier) bool {
+//	if len(oi) != len(other) {
+//		return false
+//	}
+//	for i := 0; i < len(oi); i++ {
+//		if oi[i] != other[i] {
+//			return false
+//		}
+//	}
+//
+//	return true
+//}
 
-	return true
-}
-
-func (oi ObjectIdentifier) String() string {
-	var s string
-
-	for i, v := range oi {
-		if i > 0 {
-			s += "."
-		}
-		s += strconv.Itoa(v)
-	}
-
-	return s
-}
+//func (oi ObjectIdentifier) String() string {
+//	var s string
+//
+//	for i, v := range oi {
+//		if i > 0 {
+//			s += "."
+//		}
+//		s += strconv.Itoa(v)
+//	}
+//
+//	return s
+//}
 
 // parseObjectIdentifier parses an OBJECT IDENTIFIER from the given bytes and
 // returns it. An object identifier is a sequence of variable length integers
 // that are assigned in a hierarchy.
-func parseObjectIdentifier(bytes []byte) (s ObjectIdentifier, err error) {
+func parseObjectIdentifier(bytes []byte) (s asn1.ObjectIdentifier, err error) {
 	if len(bytes) == 0 {
-		err = SyntaxError{"zero length OBJECT IDENTIFIER"}
+		err = asn1.SyntaxError{"zero length OBJECT IDENTIFIER"}
 		return
 	}
 
@@ -292,12 +292,12 @@ func parseObjectIdentifier(bytes []byte) (s ObjectIdentifier, err error) {
 // ENUMERATED
 
 // An Enumerated is represented as a plain int.
-type Enumerated int
+//type Enumerated int
 
 // FLAG
 
 // A Flag accepts any data and is set to true if present.
-type Flag bool
+//type Flag bool
 
 // parseBase128Int parses a base-128 encoded int from the given offset in the
 // given byte slice. It returns the value and the new offset.
@@ -308,7 +308,7 @@ func parseBase128Int(bytes []byte, initOffset int) (ret, offset int, err error) 
 		// 5 * 7 bits per byte == 35 bits of data
 		// Thus the representation is either non-minimal or too large for an int32
 		if shifted == 5 {
-			err = StructuralError{"base 128 integer too large"}
+			err = asn1.StructuralError{"base 128 integer too large"}
 			return
 		}
 		ret64 <<= 7
@@ -319,12 +319,12 @@ func parseBase128Int(bytes []byte, initOffset int) (ret, offset int, err error) 
 			ret = int(ret64)
 			// Ensure that the returned value fits in an int on all platforms
 			if ret64 > math.MaxInt32 {
-				err = StructuralError{"base 128 integer too large"}
+				err = asn1.StructuralError{"base 128 integer too large"}
 			}
 			return
 		}
 	}
-	err = SyntaxError{"truncated base 128 integer"}
+	err = asn1.SyntaxError{"truncated base 128 integer"}
 	return
 }
 
@@ -380,7 +380,7 @@ func parseGeneralizedTime(bytes []byte) (ret time.Time, err error) {
 func parseNumericString(bytes []byte) (ret string, err error) {
 	for _, b := range bytes {
 		if !isNumeric(b) {
-			return "", SyntaxError{"NumericString contains invalid character"}
+			return "", asn1.SyntaxError{"NumericString contains invalid character"}
 		}
 	}
 	return string(bytes), nil
@@ -399,7 +399,7 @@ func isNumeric(b byte) bool {
 func parsePrintableString(bytes []byte) (ret string, err error) {
 	for _, b := range bytes {
 		if !isPrintable(b, allowAsterisk, allowAmpersand) {
-			err = SyntaxError{"PrintableString contains invalid character"}
+			err = asn1.SyntaxError{"PrintableString contains invalid character"}
 			return
 		}
 	}
@@ -449,7 +449,7 @@ func isPrintable(b byte, asterisk asteriskFlag, ampersand ampersandFlag) bool {
 func parseIA5String(bytes []byte) (ret string, err error) {
 	for _, b := range bytes {
 		if b >= utf8.RuneSelf {
-			err = SyntaxError{"IA5String contains invalid character"}
+			err = asn1.SyntaxError{"IA5String contains invalid character"}
 			return
 		}
 	}
@@ -477,17 +477,17 @@ func parseUTF8String(bytes []byte) (ret string, err error) {
 }
 
 // A RawValue represents an undecoded ASN.1 object.
-type RawValue struct {
-	Class, Tag int
-	IsCompound bool
-	Bytes      []byte
-	FullBytes  []byte // includes the tag and length
-}
+//type RawValue struct {
+//	Class, Tag int
+//	IsCompound bool
+//	Bytes      []byte
+//	FullBytes  []byte // includes the tag and length
+//}
 
 // RawContent is used to signal that the undecoded, DER data needs to be
 // preserved for a struct. To use it, the first field of the struct must have
 // this type. It's an error for any of the other fields to have this type.
-type RawContent []byte
+//type RawContent []byte
 
 // Tagging
 
@@ -518,12 +518,12 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 		}
 		// Tags should be encoded in minimal form.
 		if ret.tag < 0x1f {
-			err = SyntaxError{"non-minimal tag"}
+			err = asn1.SyntaxError{"non-minimal tag"}
 			return
 		}
 	}
 	if offset >= len(bytes) {
-		err = SyntaxError{"truncated tag or length"}
+		err = asn1.SyntaxError{"truncated tag or length"}
 		return
 	}
 	b = bytes[offset]
@@ -563,13 +563,13 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 				}
 				log.Println("indefinite length found (not DER)")
 			}
-			err = SyntaxError{"indefinite length found (not DER)"}
+			err = asn1.SyntaxError{"indefinite length found (not DER)"}
 			return
 		}
 		ret.length = 0
 		for i := 0; i < numBytes; i++ {
 			if offset >= len(bytes) {
-				err = SyntaxError{"truncated tag or length"}
+				err = asn1.SyntaxError{"truncated tag or length"}
 				return
 			}
 			b = bytes[offset]
@@ -577,20 +577,20 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 			if ret.length >= 1<<23 {
 				// We can't shift ret.length up without
 				// overflowing.
-				err = StructuralError{"length too large"}
+				err = asn1.StructuralError{"length too large"}
 				return
 			}
 			ret.length <<= 8
 			ret.length |= int(b)
 			if ret.length == 0 {
 				// DER requires that lengths be minimal.
-				err = StructuralError{"superfluous leading zeros in length"}
+				err = asn1.StructuralError{"superfluous leading zeros in length"}
 				return
 			}
 		}
 		// Short lengths must be encoded in short form.
 		if ret.length < 0x80 {
-			err = StructuralError{"non-minimal length"}
+			err = asn1.StructuralError{"non-minimal length"}
 			return
 		}
 	}
@@ -604,7 +604,7 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type, params fieldParameters) (ret reflect.Value, err error) {
 	matchAny, expectedTag, compoundType, ok := getUniversalType(elemType)
 	if !ok {
-		err = StructuralError{"unknown Go type for slice"}
+		err = asn1.StructuralError{"unknown Go type for slice"}
 		return
 	}
 
@@ -629,11 +629,11 @@ func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type
 		}
 
 		if !matchAny && (t.class != ClassUniversal || t.isCompound != compoundType || t.tag != expectedTag) && !params.choice {
-			err = StructuralError{"sequence tag mismatch"}
+			err = asn1.StructuralError{"sequence tag mismatch"}
 			return
 		}
 		if invalidLength(offset, t.length, len(bytes)) {
-			err = SyntaxError{"truncated sequence"}
+			err = asn1.SyntaxError{"truncated sequence"}
 			return
 		}
 		offset += t.length
@@ -652,13 +652,13 @@ func parseSequenceOf(bytes []byte, sliceType reflect.Type, elemType reflect.Type
 }
 
 var (
-	bitStringType        = reflect.TypeOf(BitString{})
-	objectIdentifierType = reflect.TypeOf(ObjectIdentifier{})
-	enumeratedType       = reflect.TypeOf(Enumerated(0))
-	flagType             = reflect.TypeOf(Flag(false))
+	bitStringType        = reflect.TypeOf(asn1.BitString{})
+	objectIdentifierType = reflect.TypeOf(asn1.ObjectIdentifier{})
+	enumeratedType       = reflect.TypeOf(asn1.Enumerated(0))
+	flagType             = reflect.TypeOf(asn1.Flag(false))
 	timeType             = reflect.TypeOf(time.Time{})
-	rawValueType         = reflect.TypeOf(RawValue{})
-	rawContentsType      = reflect.TypeOf(RawContent(nil))
+	rawValueType         = reflect.TypeOf(asn1.RawValue{})
+	rawContentsType      = reflect.TypeOf(asn1.RawContent(nil))
 	bigIntType           = reflect.TypeOf(new(big.Int))
 )
 
@@ -678,7 +678,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 	// If we have run out of data, it may be that there are optional elements at the end.
 	if offset == len(bytes) {
 		if !setDefaultValue(v, params) {
-			err = SyntaxError{"sequence truncated"}
+			err = asn1.SyntaxError{"sequence truncated"}
 		}
 		return
 	}
@@ -691,7 +691,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 			return
 		}
 		if invalidLength(offset, t.length, len(bytes)) {
-			err = SyntaxError{"data truncated"}
+			err = asn1.SyntaxError{"data truncated"}
 			return
 		}
 		var result interface{}
@@ -744,7 +744,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 			expectedClass = ClassApplication
 		}
 		if offset == len(bytes) {
-			err = StructuralError{"explicit tag has no child"}
+			err = asn1.StructuralError{"explicit tag has no child"}
 			return
 		}
 		if t.class == expectedClass && t.tag == *params.tag && (t.length == 0 || t.isCompound) {
@@ -757,7 +757,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 				}
 			} else {
 				if fieldType != flagType {
-					err = StructuralError{"zero length explicit tag was not an asn1.Flag"}
+					err = asn1.StructuralError{"zero length explicit tag was not an asn1.Flag"}
 					return
 				}
 				v.SetBool(true)
@@ -769,7 +769,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 			if ok {
 				offset = initOffset
 			} else {
-				err = StructuralError{"explicitly tagged member didn't match"}
+				err = asn1.StructuralError{"explicitly tagged member didn't match"}
 			}
 			return
 		}
@@ -777,7 +777,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 
 	matchAny, universalTag, compoundType, ok1 := getUniversalType(fieldType)
 	if !ok1 {
-		err = StructuralError{fmt.Sprintf("unknown Go type: %v", fieldType)}
+		err = asn1.StructuralError{fmt.Sprintf("unknown Go type: %v", fieldType)}
 		return
 	}
 
@@ -836,12 +836,12 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 		if ok {
 			offset = initOffset
 		} else {
-			err = StructuralError{fmt.Sprintf("tags don't match (%d vs %+v) %+v %s @%d", expectedTag, t, params, fieldType.Name(), offset)}
+			err = asn1.StructuralError{fmt.Sprintf("tags don't match (%d vs %+v) %+v %s @%d", expectedTag, t, params, fieldType.Name(), offset)}
 		}
 		return
 	}
 	if invalidLength(offset, t.length, len(bytes)) {
-		err = SyntaxError{"data truncated"}
+		err = asn1.SyntaxError{"data truncated"}
 		return
 	}
 	innerBytes := bytes[offset : offset+t.length]
@@ -850,7 +850,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 	// We deal with the structures defined in this package first.
 	switch fieldType {
 	case rawValueType:
-		result := RawValue{t.class, t.tag, t.isCompound, innerBytes, bytes[initOffset:offset]}
+		result := asn1.RawValue{t.class, t.tag, t.isCompound, innerBytes, bytes[initOffset:offset]}
 		v.Set(reflect.ValueOf(result))
 		return
 	case objectIdentifierType:
@@ -928,7 +928,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 
 		for i := 0; i < structType.NumField(); i++ {
 			if structType.Field(i).PkgPath != "" {
-				err = StructuralError{"struct contains unexported fields"}
+				err = asn1.StructuralError{"struct contains unexported fields"}
 				return
 			}
 		}
@@ -936,7 +936,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 		if structType.NumField() > 0 &&
 			structType.Field(0).Type == rawContentsType {
 			bytes := bytes[initOffset:offset]
-			val.Field(0).Set(reflect.ValueOf(RawContent(bytes)))
+			val.Field(0).Set(reflect.ValueOf(asn1.RawContent(bytes)))
 		}
 
 		innerOffset := 0
@@ -998,14 +998,14 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 			// such. We give up and pass it as an 8-bit string.
 			v, err = parseT61String(innerBytes)
 		default:
-			err = SyntaxError{fmt.Sprintf("internal error: unknown string type %d", universalTag)}
+			err = asn1.SyntaxError{fmt.Sprintf("internal error: unknown string type %d", universalTag)}
 		}
 		if err == nil {
 			val.SetString(v)
 		}
 		return
 	}
-	err = StructuralError{"unsupported: " + v.Type().String()}
+	err = asn1.StructuralError{"unsupported: " + v.Type().String()}
 	return
 }
 

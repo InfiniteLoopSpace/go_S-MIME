@@ -6,6 +6,7 @@ package asn1
 
 import (
 	"bytes"
+	"encoding/asn1"
 	"encoding/hex"
 	"math/big"
 	"reflect"
@@ -32,7 +33,7 @@ type nestedStruct struct {
 }
 
 type rawContentsStruct struct {
-	Raw RawContent
+	Raw asn1.RawContent
 	A   int
 }
 
@@ -45,7 +46,7 @@ type explicitTagTest struct {
 }
 
 type flagTest struct {
-	A Flag `asn1:"tag:0,optional"`
+	A asn1.Flag `asn1:"tag:0,optional"`
 }
 
 type generalizedTimeTest struct {
@@ -65,7 +66,7 @@ type genericStringTest struct {
 }
 
 type optionalRawValueTest struct {
-	A RawValue `asn1:"optional"`
+	A asn1.RawValue `asn1:"optional"`
 }
 
 type omitEmptyTest struct {
@@ -129,11 +130,11 @@ var marshalTests = []marshalTest{
 	{time.Unix(1258325776, 0).In(PST), "17113039313131353134353631362d30383030"},
 	{farFuture(), "180f32313030303430353132303130315a"},
 	{generalizedTimeTest{time.Unix(1258325776, 0).UTC()}, "3011180f32303039313131353232353631365a"},
-	{BitString{[]byte{0x80}, 1}, "03020780"},
-	{BitString{[]byte{0x81, 0xf0}, 12}, "03030481f0"},
-	{ObjectIdentifier([]int{1, 2, 3, 4}), "06032a0304"},
-	{ObjectIdentifier([]int{1, 2, 840, 133549, 1, 1, 5}), "06092a864888932d010105"},
-	{ObjectIdentifier([]int{2, 100, 3}), "0603813403"},
+	{asn1.BitString{[]byte{0x80}, 1}, "03020780"},
+	{asn1.BitString{[]byte{0x81, 0xf0}, 12}, "03030481f0"},
+	{asn1.ObjectIdentifier([]int{1, 2, 3, 4}), "06032a0304"},
+	{asn1.ObjectIdentifier([]int{1, 2, 840, 133549, 1, 1, 5}), "06092a864888932d010105"},
+	{asn1.ObjectIdentifier([]int{2, 100, 3}), "0603813403"},
 	{"test", "130474657374"},
 	{
 		"" +
@@ -168,7 +169,7 @@ var marshalTests = []marshalTest{
 	{genericStringTest{"test&"}, "30070c057465737426"},
 	{rawContentsStruct{nil, 64}, "3003020140"},
 	{rawContentsStruct{[]byte{0x30, 3, 1, 2, 3}, 64}, "3003010203"},
-	{RawValue{Tag: 1, Class: 2, IsCompound: false, Bytes: []byte{1, 2, 3}}, "8103010203"},
+	{asn1.RawValue{Tag: 1, Class: 2, IsCompound: false, Bytes: []byte{1, 2, 3}}, "8103010203"},
 	{testSET([]int{10}), "310302010a"},
 	{omitEmptyTest{[]string{}}, "3000"},
 	{omitEmptyTest{[]string{"1"}}, "30053003130131"},
@@ -258,9 +259,9 @@ func TestMarshalOID(t *testing.T) {
 	var marshalTestsOID = []marshalTest{
 		{[]byte("\x06\x01\x30"), "0403060130"}, // bytes format returns a byte sequence \x04
 		// {ObjectIdentifier([]int{0}), "060100"}, // returns an error as OID 0.0 has the same encoding
-		{[]byte("\x06\x010"), "0403060130"},                // same as above "\x06\x010" = "\x06\x01" + "0"
-		{ObjectIdentifier([]int{2, 999, 3}), "0603883703"}, // Example of ITU-T X.690
-		{ObjectIdentifier([]int{0, 0}), "060100"},          // zero OID
+		{[]byte("\x06\x010"), "0403060130"},                     // same as above "\x06\x010" = "\x06\x01" + "0"
+		{asn1.ObjectIdentifier([]int{2, 999, 3}), "0603883703"}, // Example of ITU-T X.690
+		{asn1.ObjectIdentifier([]int{0, 0}), "060100"},          // zero OID
 	}
 	for i, test := range marshalTestsOID {
 		data, err := Marshal(test.in)
@@ -283,7 +284,7 @@ func TestIssue11130(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
-	if reflect.TypeOf(v).String() != reflect.TypeOf(ObjectIdentifier{}).String() {
+	if reflect.TypeOf(v).String() != reflect.TypeOf(asn1.ObjectIdentifier{}).String() {
 		t.Errorf("marshal OID returned an invalid type")
 		return
 	}
