@@ -22,6 +22,7 @@ package asn1
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"math/big"
 	"reflect"
@@ -534,6 +535,34 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 		// Bottom 7 bits give the number of length bytes to follow.
 		numBytes := int(b & 0x7f)
 		if numBytes == 0 {
+			if ret.isCompound {
+				reTag, reoffset, _ := parseTagAndLength(bytes, offset)
+				for reoffset <= len(bytes) {
+					if bytes[reoffset-2] == 0x00 && bytes[reoffset-1] == 0x00 {
+						//delete indefinite termination
+						bytes = append(bytes[:reoffset-2], bytes[reoffset:]...)
+
+						ret.length = reoffset - 2 - offset
+
+						var encLen []byte
+						if ret.length >= 128 {
+							l := lengthLength(ret.length)
+							encLen = append(encLen, 0x80|byte(l))
+							encLen = appendLength(encLen, ret.length)
+						} else {
+							encLen = append(encLen, byte(ret.length))
+						}
+
+						if ret.length > 0 {
+							bytes = append(bytes[:offset-1], append(encLen, bytes[offset:]...)...)
+							offset = offset + len(encLen) - 1
+						}
+						return
+					}
+					reTag, reoffset, _ = parseTagAndLength(bytes, reoffset+reTag.length)
+				}
+				log.Println("indefinite length found (not DER)")
+			}
 			err = SyntaxError{"indefinite length found (not DER)"}
 			return
 		}
