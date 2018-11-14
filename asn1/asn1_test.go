@@ -179,7 +179,7 @@ func TestBitString(t *testing.T) {
 }
 
 func TestBitStringAt(t *testing.T) {
-	bs := asn1.BitString{[]byte{0x82, 0x40}, 16}
+	bs := asn1.BitString{Bytes: []byte{0x82, 0x40}, BitLength: 16}
 	if bs.At(0) != 1 {
 		t.Error("#1: Failed")
 	}
@@ -217,7 +217,7 @@ var bitStringRightAlignTests = []bitStringRightAlignTest{
 
 func TestBitStringRightAlign(t *testing.T) {
 	for i, test := range bitStringRightAlignTests {
-		bs := asn1.BitString{test.in, test.inlen}
+		bs := asn1.BitString{Bytes: test.in, BitLength: test.inlen}
 		out := bs.RightAlign()
 		if !bytes.Equal(out, test.out) {
 			t.Errorf("#%d got: %x want: %x", i, out, test.out)
@@ -997,7 +997,7 @@ type exported struct {
 }
 
 func TestUnexportedStructField(t *testing.T) {
-	want := asn1.StructuralError{"struct contains unexported fields"}
+	want := asn1.StructuralError{Msg: "struct contains unexported fields"}
 
 	_, err := Marshal(unexported{X: 5, y: 1})
 	if err != want {

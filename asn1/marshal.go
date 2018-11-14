@@ -446,7 +446,7 @@ func makeBody(value reflect.Value, params fieldParameters) (e encoder, err error
 
 		for i := 0; i < t.NumField(); i++ {
 			if t.Field(i).PkgPath != "" {
-				return nil, asn1.StructuralError{"struct contains unexported fields"}
+				return nil, asn1.StructuralError{Msg: "struct contains unexported fields"}
 			}
 		}
 

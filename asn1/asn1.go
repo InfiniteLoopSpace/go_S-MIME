@@ -559,6 +559,10 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 						}
 						return
 					}
+					if len(bytes) <= reoffset+reTag.length {
+						err = asn1.StructuralError{"indefinete lenght: length too large"}
+						return
+					}
 					reTag, reoffset, _ = parseTagAndLength(bytes, reoffset+reTag.length)
 				}
 				log.Println("indefinite length found (not DER)")
@@ -928,7 +932,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 
 		for i := 0; i < structType.NumField(); i++ {
 			if structType.Field(i).PkgPath != "" {
-				err = asn1.StructuralError{"struct contains unexported fields"}
+				err = asn1.StructuralError{Msg: "struct contains unexported fields"}
 				return
 			}
 		}
