@@ -14,7 +14,7 @@ import (
 	timestamp "github.com/InfiniteLoopSpace/go_S-MIME/timestamp"
 )
 
-// CMS is an instance of cms to en/decrypt and sign/verfiy CMS data
+// CMS is an instance of cms to en-/decrypt and sign/verfiy CMS data
 // with the given keyPairs and options.
 type CMS struct {
 	Intermediate, roots        *x509.CertPool
