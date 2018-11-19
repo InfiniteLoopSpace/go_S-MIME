@@ -4,6 +4,7 @@ package mime
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"strings"
@@ -35,13 +36,26 @@ func (m *MIME) Body() []byte {
 }
 
 //Gets the full message
-func (m *MIME) Full() []byte {
+func (m *MIME) Full(sep ...[]byte) []byte {
 
-	var sep []byte
-	sep = append(sep, m.interm.Line...)
-	sep = append(sep, m.interm.endOfLine...)
+	if len(sep) == 0 {
+		return m.FullLines().bytes(nil)
+	}
 
-	return append(append(m.Header(), sep...), m.Body()...)
+	return m.FullLines().bytes(sep[0])
+}
+
+//Gets the full message as Lines
+func (m *MIME) FullLines() (full Lines) {
+
+	full = append(full, m.headerFld...)
+	if m.interm.Line == nil && m.interm.endOfLine == nil {
+		m.interm = Line{nil, LF}
+	}
+	full = append(full, m.interm)
+	full = append(full, m.body...)
+
+	return
 }
 
 //Adds a header field to the header of the message
@@ -62,11 +76,16 @@ func (m *MIME) AddHeaderField(key, value []byte) {
 //Removes a header fild from the header of the message
 func (m *MIME) DeleteHeaderField(key []byte) {
 
-	for i := len(m.headerFld) - 1; i >= 0; i-- {
-		colonInd := bytes.Index(m.headerFld[i].Line, []byte(":"))
-		k := m.headerFld[i].Line[:colonInd]
-		if bytes.Equal(bytes.ToLower(k), bytes.ToLower(key)) {
+	for i := 0; i < len(m.headerFld); i++ { //i := range m.headerFld {
+		keyAndField := bytes.SplitN(m.headerFld[i].Line, []byte(":"), 2)
+
+		if len(keyAndField) == 2 && bytes.Equal(bytes.ToLower(keyAndField[0]), bytes.ToLower(key)) {
+
 			m.headerFld = append(m.headerFld[:i], m.headerFld[i+1:]...)
+			for i < len(m.headerFld) && isContinuedLine(m.headerFld[i].Line) {
+				m.headerFld = append(m.headerFld[:i], m.headerFld[i+1:]...)
+			}
+			i--
 		}
 	}
 
@@ -76,15 +95,18 @@ func (m *MIME) DeleteHeaderField(key []byte) {
 func (m *MIME) GetHeaderField(key []byte) (values [][]byte) {
 
 	for i := range m.headerFld {
-		colonInd := bytes.Index(m.headerFld[i].Line, []byte(":"))
-		if colonInd < 1 {
-			fmt.Printf("%q\n", (m.headerFld[i].Line))
-		}
-		k := m.headerFld[i].Line[:colonInd]
-		if bytes.Equal(bytes.ToLower(k), bytes.ToLower(key)) {
-			if colonInd+2 < len(m.headerFld[i].Line) {
-				values = append(values, m.headerFld[i].Line[colonInd+2:])
+		keyAndField := bytes.SplitN(m.headerFld[i].Line, []byte(":"), 2)
+
+		value := []byte{}
+		if len(keyAndField) == 2 && bytes.Equal(bytes.ToLower(keyAndField[0]), bytes.ToLower(key)) {
+
+			value = append(value, keyAndField[1][1:]...)
+			for k := 1; i+k < len(m.headerFld) && isContinuedLine(m.headerFld[i+k].Line); k++ {
+				value = append(value, m.headerFld[i+k-1].endOfLine...)
+				value = append(value, m.headerFld[i+k].Line...)
 			}
+
+			values = append(values, value)
 		}
 	}
 
@@ -181,23 +203,8 @@ func Parse(raw []byte) (m MIME) {
 }
 
 func parseMIME(rawLines Lines) (m MIME) {
-	var headerField Line
 
 	for i := range rawLines {
-
-		if len(rawLines[i].Line) > 0 && isContinuedLine(rawLines[i].Line) && i > 0 && !isEmpty(rawLines[i].Line) {
-			headerField.Line = append(headerField.Line, headerField.endOfLine...)
-			headerField.Line = append(headerField.Line, rawLines[i].Line...)
-			headerField.endOfLine = rawLines[i].endOfLine
-		} else {
-
-			if i > 0 {
-				m.headerFld = append(m.headerFld, headerField)
-			}
-
-			//Next headerField
-			headerField = rawLines[i]
-		}
 
 		// Empty line seprates header and body
 		if isEmpty(rawLines[i].Line) {
@@ -205,6 +212,8 @@ func parseMIME(rawLines Lines) (m MIME) {
 			m.body = rawLines[i+1:]
 			break
 		}
+
+		m.headerFld = append(m.headerFld, rawLines[i])
 
 	}
 
@@ -241,7 +250,7 @@ func (l Lines) splitLine(sep []byte) (newL Lines) {
 			for i := 0; i < len(split)-1; i++ {
 				newL = append(newL, Line{split[i], sep})
 			}
-			newL = append(newL, Line{split[len(split)-1], nil})
+			newL = append(newL, Line{split[len(split)-1], line.endOfLine})
 		} else {
 			newL = append(newL, line)
 		}
@@ -283,4 +292,29 @@ func isContinuedLine(s []byte) bool {
 	}
 
 	return false
+}
+
+// SetMultipartBody makes a mulitpart messages with given parts and contentType
+func (m *MIME) SetMultipartBody(contentType string, parts ...MIME) {
+
+	body := Lines{}
+
+	// Generate boundary
+	bndry := make([]byte, 30)
+	rand.Read(bndry)
+	boundary := fmt.Sprintf("%x", bndry)
+
+	// Fix header
+	m.DeleteHeaderField([]byte("Content-Disposition"))
+	m.DeleteHeaderField([]byte("Content-Transfer-Encoding"))
+	m.SetHeaderField([]byte("Content-Type"), []byte(contentType+"; boundary="+boundary))
+
+	for i := range parts {
+		body = append(body, Line{[]byte("\n--" + boundary), LF})
+		body = append(body, parts[i].FullLines()...)
+	}
+
+	body = append(body, Line{[]byte("--" + boundary + "--"), LF})
+
+	m.body = body
 }

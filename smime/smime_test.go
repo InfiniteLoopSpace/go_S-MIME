@@ -2,9 +2,165 @@ package smime
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"fmt"
+	"log"
 	"testing"
+
+	"github.com/InfiniteLoopSpace/go_S-MIME/openssl"
+	"github.com/InfiniteLoopSpace/go_S-MIME/pki"
 )
+
+var (
+	root = pki.New(pki.IsCA, pki.Subject(pkix.Name{
+		CommonName: "root.example.com",
+	}))
+
+	intermediate = root.Issue(pki.IsCA, pki.Subject(pkix.Name{
+		CommonName: "intermediate.example.com",
+	}))
+
+	leaf = intermediate.Issue(pki.Subject(pkix.Name{
+		CommonName: "leaf.example.com",
+	}))
+
+	keyPair = tls.Certificate{
+		Certificate: [][]byte{leaf.Certificate.Raw, intermediate.Certificate.Raw, root.Certificate.Raw},
+		PrivateKey:  leaf.PrivateKey.(crypto.PrivateKey),
+	}
+)
+
+func TestEnryptDecrypt(t *testing.T) {
+
+	SMIME, err := New(keyPair)
+	if err != nil {
+		t.Error(err)
+	}
+
+	plaintext := []byte(msg)
+
+	ciphertext, err := SMIME.Encrypt(plaintext, []*x509.Certificate{leaf.Certificate})
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Printf("%s\n", ciphertext)
+
+	plain, err := SMIME.Decrypt(ciphertext)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if !bytes.Equal(plaintext, plain) {
+		t.Fatal("Encryption and decryption are not inverse")
+	}
+}
+
+func TestSignVerify(t *testing.T) {
+	SMIME, err := New(keyPair)
+	if err != nil {
+		t.Error(err)
+	}
+
+	SMIME.CMS.Opts.Roots.AddCert(root.Certificate)
+
+	msg := []byte(msg)
+
+	der, err := SMIME.Sign(msg)
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = SMIME.Verify(der)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestEncryptOpenSSL(t *testing.T) {
+	message := []byte("Hallo Welt!")
+
+	der, err := openssl.Encrypt(message, leaf.Certificate)
+	if err != nil {
+		t.Error(err)
+	}
+
+	SMIME, err := New(keyPair)
+	plain, err := SMIME.Decrypt(der)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !bytes.Equal(message, plain) {
+		t.Fatal("Encryption and decryption are not inverse")
+	}
+}
+
+func TestDecryptOpenSSL(t *testing.T) {
+	message := []byte(msg)
+
+	SMIME, _ := New()
+	ciphertext, err := SMIME.Encrypt(message, []*x509.Certificate{leaf.Certificate})
+	if err != nil {
+		t.Error(err)
+	}
+
+	plain, err := openssl.Decrypt(ciphertext, leaf.PrivateKey)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !bytes.Equal(message, plain) {
+		t.Fatal("Encryption and decryption are not inverse")
+	}
+}
+
+func TestSignOpenSSL(t *testing.T) {
+	message := []byte(msg)
+
+	sig, err := openssl.Sign(message, leaf.Certificate, leaf.PrivateKey, []*x509.Certificate{intermediate.Certificate})
+	if err != nil {
+		t.Error(err)
+	}
+
+	SMIME, err := New()
+	if err != nil {
+		t.Error(err)
+	}
+	SMIME.CMS.Opts.Roots.AddCert(root.Certificate)
+
+	_, err = SMIME.Verify(sig)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestVerifyOpenSSL(t *testing.T) {
+	SMIME, err := New(keyPair)
+	if err != nil {
+		t.Error(err)
+	}
+
+	SMIME.CMS.Opts.Roots.AddCert(root.Certificate)
+
+	msg := []byte(msg)
+
+	der, err := SMIME.Sign(msg)
+	if err != nil {
+		t.Error(err)
+	}
+
+	sig, err := openssl.Verify(der, root.Certificate)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !bytes.Contains(msg, bytes.Replace(sig, []byte("\r"), nil, -1)) {
+		t.Fatal("Signed message and message do not agree!")
+	}
+}
 
 func TestDecrypt(t *testing.T) {
 	cert, err := tls.X509KeyPair([]byte(bobCert), []byte(bobRSAkey))

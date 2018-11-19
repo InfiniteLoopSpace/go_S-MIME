@@ -14,33 +14,39 @@ import (
 )
 
 //Encrypt a message with openssl
-func Encrypt(in []byte, cert *x509.Certificate) (der []byte, err error) {
+func Encrypt(in []byte, cert *x509.Certificate, opts ...string) (der []byte, err error) {
 
 	tmp, err := ioutil.TempFile("", "example")
 	defer os.Remove(tmp.Name())
 
 	pem.Encode(tmp, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
 
-	der, err = openssl(in, "smime", "-outform", "DER", "-encrypt", "-aes128", tmp.Name())
+	param := []string{"smime", "-encrypt", "-aes128"}
+	param = append(param, opts...)
+	param = append(param, tmp.Name())
+	der, err = openssl(in, param...)
 
 	return
 }
 
 //Decrypt a message with openssl
-func Decrypt(in []byte, key crypto.PrivateKey) (plain []byte, err error) {
+func Decrypt(in []byte, key crypto.PrivateKey, opts ...string) (plain []byte, err error) {
 
 	tmp, err := ioutil.TempFile("", "example")
 	defer os.Remove(tmp.Name())
 
 	pem.Encode(tmp, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key.(*rsa.PrivateKey))})
 
-	plain, err = openssl(in, "smime", "-inform", "DER", "-decrypt", "-inkey", tmp.Name())
+	param := []string{"smime", "-decrypt"}
+	param = append(param, opts...)
+	param = append(param, []string{"-decrypt", "-inkey", tmp.Name()}...)
+	plain, err = openssl(in, param...)
 
 	return
 }
 
 //Create a detached signature with openssl
-func SignDetached(in []byte, cert *x509.Certificate, key crypto.PrivateKey, interm ...*x509.Certificate) (plain []byte, err error) {
+func SignDetached(in []byte, cert *x509.Certificate, key crypto.PrivateKey, interm []*x509.Certificate, opts ...string) (plain []byte, err error) {
 
 	tmpCert, err := ioutil.TempFile("", "example")
 	defer os.Remove(tmpCert.Name())
@@ -59,13 +65,16 @@ func SignDetached(in []byte, cert *x509.Certificate, key crypto.PrivateKey, inte
 		pem.Encode(tmpInterm, &pem.Block{Type: "CERTIFICATE", Bytes: i.Raw})
 	}
 
-	plain, err = openssl(in, "smime", "-sign", "-nodetach", "-outform", "DER", "-signer", tmpCert.Name(), "-inkey", tmpKey.Name(), "-certfile", tmpInterm.Name())
+	param := []string{"smime", "-sign", "-nodetach"}
+	param = append(param, opts...)
+	param = append(param, []string{"-signer", tmpCert.Name(), "-inkey", tmpKey.Name(), "-certfile", tmpInterm.Name()}...)
+	plain, err = openssl(in, param...)
 
 	return
 }
 
 //Create a signature with openssl
-func Sign(in []byte, cert *x509.Certificate, key crypto.PrivateKey, interm ...*x509.Certificate) (plain []byte, err error) {
+func Sign(in []byte, cert *x509.Certificate, key crypto.PrivateKey, interm []*x509.Certificate, opts ...string) (plain []byte, err error) {
 
 	tmpCert, err := ioutil.TempFile("", "example")
 	defer os.Remove(tmpCert.Name())
@@ -84,20 +93,26 @@ func Sign(in []byte, cert *x509.Certificate, key crypto.PrivateKey, interm ...*x
 		pem.Encode(tmpInterm, &pem.Block{Type: "CERTIFICATE", Bytes: i.Raw})
 	}
 
-	plain, err = openssl(in, "smime", "-sign", "-outform", "DER", "-signer", tmpCert.Name(), "-inkey", tmpKey.Name(), "-certfile", tmpInterm.Name())
+	param := []string{"smime", "-sign"}
+	param = append(param, opts...)
+	param = append(param, []string{"-signer", tmpCert.Name(), "-inkey", tmpKey.Name(), "-certfile", tmpInterm.Name()}...)
+	plain, err = openssl(in, param...)
 
 	return
 }
 
 //Verify a signature with openssl
-func Verify(in []byte, ca *x509.Certificate) (plain []byte, err error) {
+func Verify(in []byte, ca *x509.Certificate, opts ...string) (plain []byte, err error) {
 
 	tmpCA, err := ioutil.TempFile("", "example")
 	defer os.Remove(tmpCA.Name())
 
 	pem.Encode(tmpCA, &pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw})
 
-	plain, err = openssl(in, "smime", "-verify", "-inform", "DER", "-CAfile", tmpCA.Name())
+	param := []string{"smime", "-verify"}
+	param = append(param, opts...)
+	param = append(param, []string{"-CAfile", tmpCA.Name()}...)
+	plain, err = openssl(in, param...)
 
 	return
 }

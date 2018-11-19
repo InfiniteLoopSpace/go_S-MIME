@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
+	"log"
 	"strings"
 
 	"github.com/InfiniteLoopSpace/go_S-MIME/b64"
@@ -42,8 +43,11 @@ func (smime *SMIME) Decrypt(msg []byte) (plaintext []byte, err error) {
 	mediaType, params, err := mail.ParseMediaType()
 
 	if !strings.HasPrefix(mediaType, "application/pkcs7-mime") {
-		err = errors.New("Unsupported media type: Can not decrypt this mail")
-		return
+		if !strings.HasPrefix(mediaType, "application/x-pkcs7-mime") {
+			err = errors.New("Unsupported media type: Can not decrypt this mail")
+			return
+		}
+		log.Println("Found Content-Type \"application/x-pkcs7-mime\" used early implementations of S/MIME agents")
 	}
 
 	if !strings.HasPrefix(params["smime-type"], "enveloped-data") {
@@ -147,13 +151,16 @@ func (smime *SMIME) Verify(msg []byte) (chains [][][]*x509.Certificate, err erro
 	mediaType, params, err := mail.ParseMediaType()
 
 	if !strings.HasPrefix(mediaType, "multipart/signed") {
-		err = errors.New("Unsupported media type: can not decrypt this mail")
+		err = errors.New("Unsupported media type: can not verify the signature")
 		return
 	}
 
 	if !strings.HasPrefix(params["protocol"], "application/pkcs7-signature") {
-		err = errors.New("Unsupported smime type: can not decrypt this mail")
-		return
+		if !strings.HasPrefix(params["protocol"], "application/x-pkcs7-signature") {
+			err = errors.New("Unsupported smime type: can not verify the signature")
+			return
+		}
+		log.Println("Found Content-Type \"application/x-pkcs7-signature\" used early implementations of S/MIME agents")
 	}
 
 	parts, err := mail.MultipartGetParts()
@@ -170,8 +177,11 @@ func (smime *SMIME) Verify(msg []byte) (chains [][][]*x509.Certificate, err erro
 	mediaType, params, err = signature.ParseMediaType()
 
 	if !strings.HasPrefix(mediaType, "application/pkcs7-signature") {
-		err = errors.New("Unsupported media type: Can not decrypt this mail")
-		return
+		if !strings.HasPrefix(mediaType, "application/x-pkcs7-signature") {
+			err = errors.New("Unsupported media type: Can not decrypt this mail")
+			return
+		}
+		log.Println("Found Content-Type \"application/x-pkcs7-signature\" used early implementations of S/MIME agents")
 	}
 
 	contentTransferEncoding := signature.GetHeaderField([]byte("Content-Transfer-Encoding"))
@@ -197,4 +207,53 @@ func (smime *SMIME) Verify(msg []byte) (chains [][][]*x509.Certificate, err erro
 	}
 
 	return smime.CMS.VerifyDetached(signatureDer, signedMsg)
+}
+
+// Sign signs a mail and returns the signed message.
+func (smime *SMIME) Sign(msg []byte) (signedMsg []byte, err error) {
+
+	mail := mime.Parse(msg)
+
+	// Prepare the signed Part
+	signedPart := mime.MIME{}
+	signedPart.SetBody(mail.Body())
+	contentType := mail.GetHeaderField([]byte("Content-Type"))
+	if len(contentType) != 1 {
+		err = errors.New("Message has no Content-Type")
+		return
+	}
+	signedPart.SetHeaderField([]byte("Content-Type"), contentType[0])
+	contentTransferEncoding := mail.GetHeaderField([]byte("Content-Transfer-Encoding"))
+	if len(contentType) == 1 {
+		signedPart.SetHeaderField([]byte("Content-Transfer-Encoding"), contentTransferEncoding[0])
+	}
+	contentDisposition := mail.GetHeaderField([]byte("Content-Disposition"))
+	if len(contentType) == 1 {
+		signedPart.SetHeaderField([]byte("Content-Disposition"), contentDisposition[0])
+	}
+
+	// Sign
+	lines := mime.ParseLines(signedPart.Full())
+	signatureDER, err := smime.CMS.Sign(lines.Bytes(mime.CRLF), true)
+
+	// Encode signature
+
+	signature := mime.MIME{}
+	signature.SetHeaderField([]byte("Content-Type"), []byte("application/pkcs7-signature; name=smime.p7s"))
+	signature.SetHeaderField([]byte("Content-Transfer-Encoding"), []byte("base64"))
+	signature.SetHeaderField([]byte("Content-Disposition"), []byte("attachment; filename=smime.p7s"))
+	signatureBASE64, err := b64.EncodeBase64(signatureDER)
+	if err != nil {
+		return
+	}
+	signature.SetBody(signatureBASE64)
+
+	// Make multipart/signed message
+	micAlg := "sha256"
+	cntType := "multipart/signed;\n protocol=\"application/pkcs7-signature\";\n micalg=" + micAlg
+
+	mail.SetMultipartBody(cntType, signedPart, signature)
+
+	signedMsg = mail.Full()
+	return
 }

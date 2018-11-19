@@ -5,27 +5,25 @@ import (
 	"crypto/x509/pkix"
 	"testing"
 	"time"
-
-	pki "github.com/InfiniteLoopSpace/go_S-MIME/pki"
 )
 
 func TestCA(t *testing.T) {
 
-	pki.DefaultProvince = []string{"CO"}
-	pki.DefaultLocality = []string{"Denver"}
+	DefaultProvince = []string{"CO"}
+	DefaultLocality = []string{"Denver"}
 
 	// Create a root CA.
-	root := pki.New(pki.IsCA, pki.Subject(pkix.Name{
+	root := New(IsCA, Subject(pkix.Name{
 		CommonName: "root.myorg.com",
 	}))
 
 	// Create an intermediate CA under the root.
-	intermediate := root.Issue(pki.IsCA, pki.Subject(pkix.Name{
+	intermediate := root.Issue(IsCA, Subject(pkix.Name{
 		CommonName: "intermediate.myorg.com",
 	}))
 
 	// Create a leaf certificate under the intermediate.
-	leaf := intermediate.Issue(pki.Subject(pkix.Name{
+	leaf := intermediate.Issue(Subject(pkix.Name{
 		CommonName: "leaf.myorg.com",
 	}))
 

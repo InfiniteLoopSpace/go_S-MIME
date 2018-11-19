@@ -139,7 +139,7 @@ func (cms *CMS) Decrypt(contentInfo []byte) (plain []byte, err error) {
 }
 
 // Sign signs the data and returns returns DER-encoded ASN.1 ContentInfo.
-func (cms *CMS) Sign(data []byte) (der []byte, err error) {
+func (cms *CMS) Sign(data []byte, detachedSignature ...bool) (der []byte, err error) {
 
 	enci, err := protocol.NewDataEncapsulatedContentInfo(data)
 	if err != nil {
@@ -160,6 +160,10 @@ func (cms *CMS) Sign(data []byte) (der []byte, err error) {
 		if err1 != nil {
 			log.Println(err1)
 		}
+	}
+
+	if len(detachedSignature) > 0 && detachedSignature[0] {
+		sd.EncapContentInfo.EContent = nil
 	}
 
 	ci, err := sd.ContentInfo()

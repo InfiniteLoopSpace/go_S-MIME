@@ -104,7 +104,7 @@ func TestSignVerify(t *testing.T) {
 func TestEncryptOpenSSL(t *testing.T) {
 	message := []byte("Hallo Welt!")
 
-	der, err := openssl.Encrypt(message, leaf.Certificate)
+	der, err := openssl.Encrypt(message, leaf.Certificate, "-outform", "DER")
 	if err != nil {
 		t.Error(err)
 	}
@@ -129,7 +129,7 @@ func TestDecryptOpenSSL(t *testing.T) {
 		t.Error(err)
 	}
 
-	plain, err := openssl.Decrypt(ciphertext, leaf.PrivateKey)
+	plain, err := openssl.Decrypt(ciphertext, leaf.PrivateKey, "-inform", "DER")
 	if err != nil {
 		t.Error(err)
 	}
@@ -142,7 +142,7 @@ func TestDecryptOpenSSL(t *testing.T) {
 func TestSignOpenSSL(t *testing.T) {
 	message := []byte("Hallo Welt")
 
-	sig, err := openssl.SignDetached(message, leaf.Certificate, leaf.PrivateKey, intermediate.Certificate)
+	sig, err := openssl.SignDetached(message, leaf.Certificate, leaf.PrivateKey, []*x509.Certificate{intermediate.Certificate}, "-outform", "DER")
 	if err != nil {
 		t.Error(err)
 	}
@@ -176,7 +176,7 @@ func TestVerifyOpenSSL(t *testing.T) {
 		t.Error(err)
 	}
 
-	sig, err := openssl.Verify(der, root.Certificate)
+	sig, err := openssl.Verify(der, root.Certificate, "-inform", "DER")
 	if err != nil {
 		t.Error(err)
 	}
