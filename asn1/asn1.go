@@ -535,7 +535,7 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 		// Bottom 7 bits give the number of length bytes to follow.
 		numBytes := int(b & 0x7f)
 		if numBytes == 0 {
-			if ret.isCompound {
+			if ret.isCompound && ret.tag != TagOctetString {
 				reTag, reoffset, _ := parseTagAndLength(bytes, offset)
 				for reoffset <= len(bytes) {
 					if bytes[reoffset-2] == 0x00 && bytes[reoffset-1] == 0x00 {
@@ -557,6 +557,24 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 							bytes = append(bytes[:offset-1], append(encLen, bytes[offset:]...)...)
 							offset = offset + len(encLen) - 1
 						}
+						return
+					}
+					if len(bytes) <= reoffset+reTag.length {
+						err = asn1.StructuralError{"indefinete lenght: length too large"}
+						return
+					}
+					reTag, reoffset, _ = parseTagAndLength(bytes, reoffset+reTag.length)
+				}
+				log.Println("indefinite length found (not DER)")
+			}
+			if ret.isCompound && ret.tag == TagOctetString {
+				reTag, reoffset, _ := parseTagAndLength(bytes, offset)
+				for reoffset <= len(bytes) {
+					if bytes[reoffset-2] == 0x00 && bytes[reoffset-1] == 0x00 {
+						//delete indefinite termination
+
+						ret.length = reoffset - offset
+
 						return
 					}
 					if len(bytes) <= reoffset+reTag.length {
@@ -756,6 +774,12 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 				// The inner element should not be parsed for RawValues.
 			} else if t.length > 0 {
 				t, offset, err = parseTagAndLength(bytes, offset)
+				if t.isCompound && t.tag == TagOctetString {
+					t, offset, err = parseTagAndLength(bytes, offset)
+					if t.tag == TagOctetString {
+						v.Set(reflect.ValueOf(bytes[offset : offset+t.length]))
+					}
+				}
 				if err != nil {
 					return
 				}

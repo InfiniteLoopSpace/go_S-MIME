@@ -333,10 +333,17 @@ func (sd *SignedData) Verify(Opts x509.VerifyOptions, detached []byte) (chains [
 			return
 		}
 
-		var chain [][]*x509.Certificate
-		chain, err = cert.Verify(Opts)
+		var signingTime time.Time
+		signingTime, err = signer.GetSigningTimeAttribute()
 		if err != nil {
-			return
+			opts.CurrentTime = time.Now()
+		}
+		opts.CurrentTime = signingTime
+
+		var chain [][]*x509.Certificate
+		chain, err = cert.Verify(opts)
+		if err != nil {
+			//	return
 		}
 
 		signedMessage := eContent
