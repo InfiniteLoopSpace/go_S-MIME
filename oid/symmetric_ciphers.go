@@ -32,9 +32,10 @@ var (
 	AEADChaCha20Poly1305         = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 16, 3, 18}
 )
 
-var symmetricKeyLen = map[string]int{
-	EncryptionAlgorithmDESCBC.String():     7,
-	EncryptionAlgorithmDESEDE3CBC.String(): 21,
+// SymmetricKeyLen maps the encryption algorithm to its key length
+var SymmetricKeyLen = map[string]int{
+	EncryptionAlgorithmDESCBC.String():     8,
+	EncryptionAlgorithmDESEDE3CBC.String(): 24,
 	EncryptionAlgorithmAES128CBC.String():  16,
 	EncryptionAlgorithmAES256CBC.String():  32,
 	//AEAD
@@ -46,7 +47,7 @@ var symmetricKeyLen = map[string]int{
 func (e *EncryptionAlgorithm) Encrypt(plaintext []byte) (ciphertext []byte, err error) {
 
 	if e.Key == nil {
-		e.Key = make([]byte, symmetricKeyLen[e.EncryptionAlgorithmIdentifier.String()])
+		e.Key = make([]byte, SymmetricKeyLen[e.EncryptionAlgorithmIdentifier.String()])
 		rand.Read(e.Key)
 	}
 
@@ -71,7 +72,7 @@ func (e *EncryptionAlgorithm) Encrypt(plaintext []byte) (ciphertext []byte, err 
 	switch e.EncryptionAlgorithmIdentifier.String() {
 	case EncryptionAlgorithmAES128CBC.String(), EncryptionAlgorithmAES256CBC.String():
 		if e.IV == nil {
-			e.IV = make([]byte, len(e.Key))
+			e.IV = make([]byte, blockCipher.BlockSize())
 			rand.Read(e.IV)
 		}
 
@@ -180,7 +181,6 @@ func (e *EncryptionAlgorithm) Decrypt(ciphertext []byte) (plaintext []byte, err 
 	switch e.EncryptionAlgorithmIdentifier.String() {
 	case EncryptionAlgorithmAES128CBC.String(), EncryptionAlgorithmAES256CBC.String(), EncryptionAlgorithmDESCBC.String(), EncryptionAlgorithmDESEDE3CBC.String():
 		e.IV = e.ContentEncryptionAlgorithmIdentifier.Parameters.Bytes
-
 		blockMode = cipher.NewCBCDecrypter(blockCipher, e.IV)
 	case EncryptionAlgorithmAES128GCM.String():
 		aead, err = cipher.NewGCM(blockCipher)
@@ -198,7 +198,6 @@ func (e *EncryptionAlgorithm) Decrypt(ciphertext []byte) (plaintext []byte, err 
 	case EncryptionAlgorithmAES128CBC.String(), EncryptionAlgorithmAES256CBC.String(), EncryptionAlgorithmDESCBC.String(), EncryptionAlgorithmDESEDE3CBC.String():
 		plaintext = make([]byte, len(ciphertext))
 		blockMode.CryptBlocks(plaintext, ciphertext)
-
 		return unpad(plaintext, blockMode.BlockSize())
 	case EncryptionAlgorithmAES128GCM.String(), AEADChaCha20Poly1305.String():
 		var cipher []byte
@@ -247,6 +246,9 @@ func unpad(data []byte, blocklen int) ([]byte, error) {
 
 	// the last byte is the length of padding
 	padlen := int(data[len(data)-1])
+	if padlen > blocklen {
+		return nil, fmt.Errorf("pad len %d is bigger than block len len %d", padlen, blocklen)
+	}
 
 	// check padding integrity, all bytes should be the same
 	pad := data[len(data)-padlen:]

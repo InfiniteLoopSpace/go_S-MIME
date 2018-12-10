@@ -379,8 +379,12 @@ func (sd *SignedData) Verify(Opts x509.VerifyOptions, detached []byte) (chains [
 				return
 			}
 		}
-
-		err = cert.CheckSignature(signer.X509SignatureAlgorithm(), signedMessage, signer.Signature)
+		var sigAlg x509.SignatureAlgorithm
+		sigAlg, err = signer.X509SignatureAlgorithm()
+		if err != nil {
+			return
+		}
+		err = cert.CheckSignature(sigAlg, signedMessage, signer.Signature)
 		if err != nil {
 			return
 		}

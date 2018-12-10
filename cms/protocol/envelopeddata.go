@@ -58,7 +58,7 @@ func (ed *EnvelopedData) decryptKey(keyPair tls.Certificate) (key []byte, err er
 	for i := range ed.RecipientInfos {
 
 		key, err = ed.RecipientInfos[i].decryptKey(keyPair)
-		if key != nil {
+		if key != nil || err != ErrNoKeyFound {
 			return
 		}
 	}

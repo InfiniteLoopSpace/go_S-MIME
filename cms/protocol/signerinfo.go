@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"fmt"
 	"time"
 
 	asn "github.com/InfiniteLoopSpace/go_S-MIME/asn1"
@@ -83,13 +84,18 @@ func (si SignerInfo) Hash() (crypto.Hash, error) {
 
 // X509SignatureAlgorithm gets the x509.SignatureAlgorithm that should be used
 // for verifying this SignerInfo's signature.
-func (si SignerInfo) X509SignatureAlgorithm() x509.SignatureAlgorithm {
+func (si SignerInfo) X509SignatureAlgorithm() (sigAlg x509.SignatureAlgorithm, err error) {
 	var (
 		sigOID    = si.SignatureAlgorithm.Algorithm.String()
 		digestOID = si.DigestAlgorithm.Algorithm.String()
 	)
+	sigAlg, ok := oid.SignatureAlgorithms[sigOID][digestOID]
 
-	return oid.SignatureAlgorithms[sigOID][digestOID]
+	if !ok {
+		err = fmt.Errorf("Signature algorithm with OID %s in combination with digest with OID %s not supported", sigOID, digestOID)
+	}
+
+	return
 }
 
 // GetContentTypeAttribute gets the signed ContentType attribute from the

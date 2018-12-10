@@ -482,9 +482,6 @@ func makeBody(value reflect.Value, params fieldParameters) (e encoder, err error
 			m := make([]encoder, n1)
 			for i := 0; i < n1; i++ {
 				fp := parseFieldParameters(t.Field(i + startingField).Tag.Get("asn1"))
-				if params.explicit && params.choice {
-					fp.explicit = true
-				}
 				m[i], err = makeField(v.Field(i+startingField), fp)
 				if err != nil {
 					return nil, err
@@ -501,9 +498,6 @@ func makeBody(value reflect.Value, params fieldParameters) (e encoder, err error
 
 		var fp fieldParameters
 		fp.choice = params.choice
-		if params.choice && params.set {
-			fp.explicit = true
-		}
 
 		switch l := v.Len(); l {
 		case 0:

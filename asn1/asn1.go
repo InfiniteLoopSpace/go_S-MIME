@@ -760,7 +760,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 	if err != nil {
 		return
 	}
-	if params.explicit {
+	if params.explicit && !params.choice {
 		expectedClass := ClassContextSpecific
 		if params.application {
 			expectedClass = ClassApplication
@@ -968,19 +968,13 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 		}
 
 		innerOffset := 0
+		if params.choice {
+			if !params.explicit {
+				innerBytes = bytes[initOffset:]
+			}
+		}
 		for i := 0; i < structType.NumField(); i++ {
 			field := structType.Field(i)
-			if params.choice {
-				tag := parseFieldParameters(field.Tag.Get("asn1")).tag
-				if tag != nil && t.tag == *tag || t.class != ClassContextSpecific && tag == nil {
-					if tag == nil || params.set {
-						innerBytes = bytes[initOffset:offset]
-					}
-					innerOffset, err = parseField(val.Field(i), innerBytes, innerOffset, fieldParameters{})
-					return
-				}
-				continue
-			}
 			if i == 0 && field.Type == rawContentsType {
 				continue
 			}

@@ -19,7 +19,7 @@ It supports enveloped data with AES in CBC mode. Decryption also works with (3)D
 This is covered in 
 - Cryptographic Message Syntax (CMS) Authenticated-Enveloped-Data Content Type [rfc5083](https://tools.ietf.org/html/rfc5083)
 - Using ChaCha20-Poly1305 Authenticated Encryption in the Cryptographic Message Syntax (CMS) [rfc8103](https://tools.ietf.org/html/rfc8103)
-- Using AES-CCM and AES-GCM Authenticated Encryption in the Cryptographic Message Syntax (CMS) [rfc5084](https://tools.ietf.org/html/rfc 5084)
+- Using AES-CCM and AES-GCM Authenticated Encryption in the Cryptographic Message Syntax (CMS) [rfc5084](https://tools.ietf.org/html/rfc5084)
 
 ## Examples
 

@@ -33,8 +33,14 @@ type RecipientInfo struct {
 
 func (recInfo *RecipientInfo) decryptKey(keyPair tls.Certificate) (key []byte, err error) {
 
-	return recInfo.KTRI.decryptKey(keyPair)
+	key, err = recInfo.KTRI.decryptKey(keyPair)
+	if key != nil {
+		return
+	}
 
+	key, err = recInfo.KARI.decryptKey(keyPair)
+
+	return
 }
 
 //KeyTransRecipientInfo ::= SEQUENCE {
@@ -102,7 +108,7 @@ type RecipientIdentifier struct {
 }
 
 // NewRecipientInfo creates RecipientInfo for giben recipient and key.
-func NewRecipientInfo(recipient *x509.Certificate, key []byte) RecipientInfo {
+func NewRecipientInfo(recipient *x509.Certificate, key []byte) (info RecipientInfo, err error) {
 	version := 0 //issuerAndSerialNumber
 
 	rid := RecipientIdentifier{}
@@ -118,24 +124,35 @@ func NewRecipientInfo(recipient *x509.Certificate, key []byte) RecipientInfo {
 		rid.SKI = recipient.SubjectKeyId
 	}
 
-	kea := oid.PublicKeyAlgorithmToEncrytionAlgorithm[recipient.PublicKeyAlgorithm]
-	if _, ok := oid.PublicKeyAlgorithmToEncrytionAlgorithm[recipient.PublicKeyAlgorithm]; !ok {
-		log.Fatal("NewRecipientInfo: PublicKeyAlgorithm not supported")
+	switch recipient.PublicKeyAlgorithm {
+	case x509.RSA:
+		var encrypted []byte
+		encrypted, err = encryptKeyRSA(key, recipient)
+		if err != nil {
+			return
+		}
+		info = RecipientInfo{
+			KTRI: KeyTransRecipientInfo{
+				Version:                version,
+				Rid:                    rid,
+				KeyEncryptionAlgorithm: pkix.AlgorithmIdentifier{Algorithm: oid.EncryptionAlgorithmRSA},
+				EncryptedKey:           encrypted,
+			}}
+	case x509.ECDSA:
+		var kari KeyAgreeRecipientInfo
+		kari, err = encryptKeyECDH(key, recipient)
+		if err != nil {
+			return
+		}
+		info = RecipientInfo{KARI: kari}
+	default:
+		err = errors.New("Public key algorithm not supported")
 	}
 
-	encrypted, _ := encryptKey(key, recipient)
-
-	info := RecipientInfo{
-		KTRI: KeyTransRecipientInfo{
-			Version:                version,
-			Rid:                    rid,
-			KeyEncryptionAlgorithm: kea,
-			EncryptedKey:           encrypted,
-		}}
-	return info
+	return
 }
 
-func encryptKey(key []byte, recipient *x509.Certificate) ([]byte, error) {
+func encryptKeyRSA(key []byte, recipient *x509.Certificate) ([]byte, error) {
 	if pub := recipient.PublicKey.(*rsa.PublicKey); pub != nil {
 		return rsa.EncryptPKCS1v15(rand.Reader, pub, key)
 	}

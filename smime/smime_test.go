@@ -234,7 +234,7 @@ Y0ZB9qANMAsGA1UdDzEEAwIAEA==
 -----END PRIVATE KEY-----`
 
 //https://github.com/fullsailor/pkcs7/issues/9
-func TestiTunesReceipt(t *testing.T) {
+func TestSampleiTunesReceipt(t *testing.T) {
 
 	b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(iTunesReceipt))
 	if err != nil {

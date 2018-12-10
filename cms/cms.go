@@ -65,7 +65,11 @@ func (cms *CMS) Encrypt(data []byte, recipients []*x509.Certificate) (der []byte
 	var reciInfos []protocol.RecipientInfo
 
 	for _, recipient := range recipients {
-		rInfo := protocol.NewRecipientInfo(recipient, key)
+		var rInfo protocol.RecipientInfo
+		rInfo, err = protocol.NewRecipientInfo(recipient, key)
+		if err != nil {
+			return
+		}
 		reciInfos = append(reciInfos, rInfo)
 	}
 
@@ -90,7 +94,11 @@ func (cms *CMS) AuthEncrypt(data []byte, recipients []*x509.Certificate) (der []
 	var reciInfos []protocol.RecipientInfo
 
 	for _, recipient := range recipients {
-		rInfo := protocol.NewRecipientInfo(recipient, key)
+		var rInfo protocol.RecipientInfo
+		rInfo, err = protocol.NewRecipientInfo(recipient, key)
+		if err != nil {
+			return
+		}
 		reciInfos = append(reciInfos, rInfo)
 	}
 

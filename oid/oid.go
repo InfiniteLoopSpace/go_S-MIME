@@ -28,8 +28,13 @@ var (
 
 // Signature Algorithm  OIDs
 var (
-	SignatureAlgorithmRSA   = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
-	SignatureAlgorithmECDSA = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
+	SignatureAlgorithmRSA             = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
+	SignatureAlgorithmECDSA           = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
+	SignatureAlgorithmECDSAwithSHA1   = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 1}
+	SignatureAlgorithmECDSAwithSHA224 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 1}
+	SignatureAlgorithmECDSAwithSHA256 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}
+	SignatureAlgorithmECDSAwithSHA384 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 3}
+	SignatureAlgorithmECDSAwithSHA512 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 4}
 )
 
 // Public Key Encryption OIDs
@@ -49,6 +54,27 @@ var (
 // X.509 extensions
 var (
 	SubjectKeyIdentifier = asn1.ObjectIdentifier{2, 5, 29, 14}
+)
+
+// Elliptic curve public key OID
+var (
+	ECPublicKey = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
+)
+
+// DH Key Derivation Schemes OIDs
+var (
+	DHSinglePassstdDHsha1kdfscheme   = asn1.ObjectIdentifier{1, 3, 133, 16, 840, 63, 0, 2}
+	DHSinglePassstdDHsha224kdfscheme = asn1.ObjectIdentifier{1, 3, 132, 1, 11, 0}
+	DHSinglePassstdDHsha256kdfscheme = asn1.ObjectIdentifier{1, 3, 132, 1, 11, 1}
+	DHSinglePassstdDHsha384kdfscheme = asn1.ObjectIdentifier{1, 3, 132, 1, 11, 2}
+	DHSinglePassstdDHsha512kdfscheme = asn1.ObjectIdentifier{1, 3, 132, 1, 11, 3}
+)
+
+// Key wrap algorithm OIDs
+var (
+	AES128Wrap = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 5}
+	AES192Wrap = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 25}
+	AES256Wrap = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 45}
 )
 
 // DigestAlgorithmToHash maps digest OIDs to crypto.Hash values.
@@ -113,6 +139,18 @@ var SignatureAlgorithms = map[string]map[string]x509.SignatureAlgorithm{
 		DigestAlgorithmSHA384.String(): x509.ECDSAWithSHA384,
 		DigestAlgorithmSHA512.String(): x509.ECDSAWithSHA512,
 	},
+	SignatureAlgorithmECDSAwithSHA1.String(): map[string]x509.SignatureAlgorithm{
+		DigestAlgorithmSHA1.String(): x509.ECDSAWithSHA1,
+	},
+	SignatureAlgorithmECDSAwithSHA256.String(): map[string]x509.SignatureAlgorithm{
+		DigestAlgorithmSHA256.String(): x509.ECDSAWithSHA256,
+	},
+	SignatureAlgorithmECDSAwithSHA384.String(): map[string]x509.SignatureAlgorithm{
+		DigestAlgorithmSHA384.String(): x509.ECDSAWithSHA384,
+	},
+	SignatureAlgorithmECDSAwithSHA512.String(): map[string]x509.SignatureAlgorithm{
+		DigestAlgorithmSHA512.String(): x509.ECDSAWithSHA512,
+	},
 }
 
 // PublicKeyAlgorithmToSignatureAlgorithm maps certificate public key
@@ -126,4 +164,13 @@ var PublicKeyAlgorithmToSignatureAlgorithm = map[x509.PublicKeyAlgorithm]pkix.Al
 // algorithms to CMS encryption algorithms.
 var PublicKeyAlgorithmToEncrytionAlgorithm = map[x509.PublicKeyAlgorithm]pkix.AlgorithmIdentifier{
 	x509.RSA: pkix.AlgorithmIdentifier{Algorithm: EncryptionAlgorithmRSA},
+}
+
+// KDFHashAlgorithm key derivation schemes to its hash algorithms
+var KDFHashAlgorithm = map[string]crypto.Hash{
+	DHSinglePassstdDHsha1kdfscheme.String():   crypto.SHA1,
+	DHSinglePassstdDHsha224kdfscheme.String(): crypto.SHA224,
+	DHSinglePassstdDHsha256kdfscheme.String(): crypto.SHA256,
+	DHSinglePassstdDHsha384kdfscheme.String(): crypto.SHA384,
+	DHSinglePassstdDHsha512kdfscheme.String(): crypto.SHA512,
 }
