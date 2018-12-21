@@ -14,12 +14,14 @@ It consists of the following packages
 - smime Secure/Multipurpose Internet Mail Extensions (S/MIME) Version 4.0 [rfc5751-bis-12](https://tools.ietf.org/html/draft-ietf-lamps-rfc5751-bis-12) [![GoDoc](https://godoc.org/github.com/InfiniteLoopSpace/go_S-MIME/smime?status.svg)](https://godoc.org/github.com/InfiniteLoopSpace/go_S-MIME/smime)
 - timestamp<sup>[5]</sup> - Time-Stamp Protocol (TSP) [rfc3161](https://tools.ietf.org/html/rfc3161) [![GoDoc](https://godoc.org/github.com/InfiniteLoopSpace/go_S-MIME/timestamp?status.svg)](https://godoc.org/github.com/InfiniteLoopSpace/go_S-MIME/timestamp)
 
-It supports enveloped data with AES in CBC mode. Decryption also works with (3)DES.  Authenticated-Enveloped-Data Content Type is also supported with AES-GCM and ChaCha20-Poly1305.
+It supports enveloped data with AES in CBC mode. Decryption also works with (3)DES.  Authenticated-Enveloped-Data Content Type is also supported with AES-GCM and ChaCha20-Poly1305. Also RSAES-OAEP and RSASSA-PSS is supported.
 
 This is covered in 
 - Cryptographic Message Syntax (CMS) Authenticated-Enveloped-Data Content Type [rfc5083](https://tools.ietf.org/html/rfc5083)
 - Using ChaCha20-Poly1305 Authenticated Encryption in the Cryptographic Message Syntax (CMS) [rfc8103](https://tools.ietf.org/html/rfc8103)
 - Using AES-CCM and AES-GCM Authenticated Encryption in the Cryptographic Message Syntax (CMS) [rfc5084](https://tools.ietf.org/html/rfc5084)
+- Use of the RSASSA-PSS Signature Algorithm in Cryptographic Message Syntax (CMS) [rfc4056](https://tools.ietf.org/html/rfc4056)
+- Use of the RSAES-OAEP Key Transport Algorithm in the Cryptographic Message Syntax (CMS) [rfc3560](https://tools.ietf.org/html/rfc3560)
 
 ## Examples
 
@@ -53,8 +55,6 @@ plaintext, _ := SMIME.Verify(signedMsg)
 
 ## Todo
 
-- Add S/MIME capabilities attributes
-- Add ECDH for encryption and decryption
 - Testing
 
 

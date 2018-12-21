@@ -29,6 +29,7 @@ var (
 // Signature Algorithm  OIDs
 var (
 	SignatureAlgorithmRSA             = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
+	SignatureAlgorithmRSASSAPSS       = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 10}
 	SignatureAlgorithmECDSA           = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
 	SignatureAlgorithmECDSAwithSHA1   = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 1}
 	SignatureAlgorithmECDSAwithSHA224 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 1}
@@ -39,7 +40,8 @@ var (
 
 // Public Key Encryption OIDs
 var (
-	EncryptionAlgorithmRSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
+	EncryptionAlgorithmRSA       = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
+	EncryptionAlgorithmRSAESOAEP = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 7}
 )
 
 // Digest Algorithm OIDs
@@ -132,6 +134,11 @@ var SignatureAlgorithms = map[string]map[string]x509.SignatureAlgorithm{
 		DigestAlgorithmSHA256.String(): x509.SHA256WithRSA,
 		DigestAlgorithmSHA384.String(): x509.SHA384WithRSA,
 		DigestAlgorithmSHA512.String(): x509.SHA512WithRSA,
+	},
+	SignatureAlgorithmRSASSAPSS.String(): map[string]x509.SignatureAlgorithm{
+		DigestAlgorithmSHA256.String(): x509.SHA256WithRSAPSS,
+		DigestAlgorithmSHA384.String(): x509.SHA384WithRSAPSS,
+		DigestAlgorithmSHA512.String(): x509.SHA512WithRSAPSS,
 	},
 	SignatureAlgorithmECDSA.String(): map[string]x509.SignatureAlgorithm{
 		DigestAlgorithmSHA1.String():   x509.ECDSAWithSHA1,

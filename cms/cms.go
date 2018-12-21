@@ -23,6 +23,7 @@ type CMS struct {
 	TimeStampServer            string
 	TimeStamp                  bool
 	keyPairs                   []tls.Certificate
+	signedAttrs                []protocol.Attribute
 }
 
 // New create a new instance of CMS with given keyPairs.
@@ -50,6 +51,19 @@ func New(cert ...tls.Certificate) (cms *CMS, err error) {
 			return
 		}
 	}
+
+	return
+}
+
+// AddAttribute adds a attribute to signedAttrs which will be used for signing
+func (cms *CMS) AddAttribute(attrType asn1.ObjectIdentifier, val interface{}) (err error) {
+
+	attr, err := protocol.NewAttribute(attrType, val)
+	if err != nil {
+		return
+	}
+
+	cms.signedAttrs = append(cms.signedAttrs, attr)
 
 	return
 }
@@ -160,7 +174,10 @@ func (cms *CMS) Sign(data []byte, detachedSignature ...bool) (der []byte, err er
 	}
 
 	for i := range cms.keyPairs {
-		sd.AddSignerInfo(cms.keyPairs[i])
+		err = sd.AddSignerInfo(cms.keyPairs[i], cms.signedAttrs)
+		if err != nil {
+			return
+		}
 	}
 
 	if cms.TimeStamp {

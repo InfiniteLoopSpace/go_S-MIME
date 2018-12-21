@@ -10,7 +10,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -34,7 +33,7 @@ type RecipientInfo struct {
 func (recInfo *RecipientInfo) decryptKey(keyPair tls.Certificate) (key []byte, err error) {
 
 	key, err = recInfo.KTRI.decryptKey(keyPair)
-	if key != nil {
+	if key != nil || (err != nil && err != ErrUnsupported) {
 		return
 	}
 
@@ -64,6 +63,23 @@ func (ktri *KeyTransRecipientInfo) decryptKey(keyPair tls.Certificate) (key []by
 
 	ski := keyPair.Leaf.SubjectKeyId
 
+	certPubAlg := oid.PublicKeyAlgorithmToEncrytionAlgorithm[keyPair.Leaf.PublicKeyAlgorithm].Algorithm
+
+	var decOpts crypto.DecrypterOpts
+	pkcs15CertwithOAEP := false
+
+	if ktri.KeyEncryptionAlgorithm.Algorithm.Equal(oid.EncryptionAlgorithmRSAESOAEP) {
+
+		if certPubAlg.Equal(oid.EncryptionAlgorithmRSA) {
+			pkcs15CertwithOAEP = true
+		}
+
+		decOpts, err = parseRSAESOAEPparams(ktri.KeyEncryptionAlgorithm.Parameters.FullBytes)
+		if err != nil {
+			return
+		}
+	}
+
 	//version is the syntax version number.  If the SignerIdentifier is
 	//the CHOICE issuerAndSerialNumber, then the version MUST be 1.  If
 	//the SignerIdentifier is subjectKeyIdentifier, then the version
@@ -71,28 +87,25 @@ func (ktri *KeyTransRecipientInfo) decryptKey(keyPair tls.Certificate) (key []by
 	switch ktri.Version {
 	case 0:
 		if ias.Equal(ktri.Rid.IAS) {
-			alg := oid.PublicKeyAlgorithmToEncrytionAlgorithm[keyPair.Leaf.PublicKeyAlgorithm].Algorithm
-			if ktri.KeyEncryptionAlgorithm.Algorithm.Equal(alg) {
+			if ktri.KeyEncryptionAlgorithm.Algorithm.Equal(certPubAlg) || pkcs15CertwithOAEP {
 
 				decrypter := keyPair.PrivateKey.(crypto.Decrypter)
-				return decrypter.Decrypt(rand.Reader, ktri.EncryptedKey, nil)
+				return decrypter.Decrypt(rand.Reader, ktri.EncryptedKey, decOpts)
 
 			}
 			log.Println("Key encrytion algorithm not matching")
 		}
 	case 2:
 		if bytes.Equal(ski, ktri.Rid.SKI) {
-			alg := oid.PublicKeyAlgorithmToEncrytionAlgorithm[keyPair.Leaf.PublicKeyAlgorithm].Algorithm
-			if ktri.KeyEncryptionAlgorithm.Algorithm.Equal(alg) {
-				if alg.Equal(oid.EncryptionAlgorithmRSA) {
-					return rsa.DecryptPKCS1v15(rand.Reader, keyPair.PrivateKey.(*rsa.PrivateKey), ktri.EncryptedKey)
-				}
-				log.Println("Unsupported key encrytion algorithm")
+			if ktri.KeyEncryptionAlgorithm.Algorithm.Equal(certPubAlg) || pkcs15CertwithOAEP {
+
+				decrypter := keyPair.PrivateKey.(crypto.Decrypter)
+				return decrypter.Decrypt(rand.Reader, ktri.EncryptedKey, decOpts)
+
 			}
 			log.Println("Key encrytion algorithm not matching")
 		}
 	default:
-		fmt.Println(ktri.Version)
 		return nil, ErrUnsupported
 	}
 
@@ -109,35 +122,15 @@ type RecipientIdentifier struct {
 
 // NewRecipientInfo creates RecipientInfo for giben recipient and key.
 func NewRecipientInfo(recipient *x509.Certificate, key []byte) (info RecipientInfo, err error) {
-	version := 0 //issuerAndSerialNumber
-
-	rid := RecipientIdentifier{}
-
-	switch version {
-	case 0:
-		ias, err := NewIssuerAndSerialNumber(recipient)
-		if err != nil {
-			log.Fatal(err)
-		}
-		rid.IAS = ias
-	case 2:
-		rid.SKI = recipient.SubjectKeyId
-	}
 
 	switch recipient.PublicKeyAlgorithm {
 	case x509.RSA:
-		var encrypted []byte
-		encrypted, err = encryptKeyRSA(key, recipient)
+		var ktri KeyTransRecipientInfo
+		ktri, err = encryptKeyRSA(key, recipient)
 		if err != nil {
 			return
 		}
-		info = RecipientInfo{
-			KTRI: KeyTransRecipientInfo{
-				Version:                version,
-				Rid:                    rid,
-				KeyEncryptionAlgorithm: pkix.AlgorithmIdentifier{Algorithm: oid.EncryptionAlgorithmRSA},
-				EncryptedKey:           encrypted,
-			}}
+		info = RecipientInfo{KTRI: ktri}
 	case x509.ECDSA:
 		var kari KeyAgreeRecipientInfo
 		kari, err = encryptKeyECDH(key, recipient)
@@ -152,11 +145,47 @@ func NewRecipientInfo(recipient *x509.Certificate, key []byte) (info RecipientIn
 	return
 }
 
-func encryptKeyRSA(key []byte, recipient *x509.Certificate) ([]byte, error) {
-	if pub := recipient.PublicKey.(*rsa.PublicKey); pub != nil {
-		return rsa.EncryptPKCS1v15(rand.Reader, pub, key)
+func encryptKeyRSA(key []byte, recipient *x509.Certificate) (ktri KeyTransRecipientInfo, err error) {
+	ktri.Version = 0 //issuerAndSerialNumber
+
+	switch ktri.Version {
+	case 0:
+		ias, err := NewIssuerAndSerialNumber(recipient)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ktri.Rid.IAS = ias
+	case 2:
+		ktri.Rid.SKI = recipient.SubjectKeyId
 	}
-	return nil, ErrUnsupportedAlgorithm
+
+	if pub := recipient.PublicKey.(*rsa.PublicKey); pub != nil {
+
+		if isRSAPSS(recipient) {
+			hash := crypto.SHA256
+			var oaepparam RSAESOAEPparams
+			oaepparam, err = newRSAESOAEPparams(hash)
+			if err != nil {
+				return
+			}
+			var oaepparamRV asn1.RawValue
+			oaepparamRV, err = RawValue(oaepparam)
+			if err != nil {
+				return
+			}
+			ktri.KeyEncryptionAlgorithm = pkix.AlgorithmIdentifier{Algorithm: oid.EncryptionAlgorithmRSAESOAEP, Parameters: oaepparamRV}
+			h := hash.New()
+			ktri.EncryptedKey, err = rsa.EncryptOAEP(h, rand.Reader, pub, key, nil)
+			return
+		}
+
+		ktri.KeyEncryptionAlgorithm = pkix.AlgorithmIdentifier{Algorithm: oid.EncryptionAlgorithmRSA}
+		ktri.EncryptedKey, err = rsa.EncryptPKCS1v15(rand.Reader, pub, key)
+		return
+	}
+
+	err = ErrUnsupportedAlgorithm
+	return
 }
 
 // ErrUnsupportedAlgorithm is returned if the algorithm is unsupported.

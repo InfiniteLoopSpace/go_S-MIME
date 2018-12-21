@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -106,7 +107,7 @@ func NewSignedData(eci EncapsulatedContentInfo) (*SignedData, error) {
 }
 
 // AddSignerInfo adds a SignerInfo to the SignedData.
-func (sd *SignedData) AddSignerInfo(keypPair tls.Certificate) (err error) {
+func (sd *SignedData) AddSignerInfo(keypPair tls.Certificate, attrs []Attribute) (err error) {
 
 	for _, cert := range keypPair.Certificate {
 		if err = sd.AddCertificate(cert); err != nil {
@@ -125,8 +126,13 @@ func (sd *SignedData) AddSignerInfo(keypPair tls.Certificate) (err error) {
 
 	sid := SignerIdentifier{ias, nil}
 
+	var signerOpts crypto.SignerOpts
 	digestAlgorithm := digestAlgorithmForPublicKey(cert.PublicKey)
 	signatureAlgorithm, ok := oid.PublicKeyAlgorithmToSignatureAlgorithm[keypPair.Leaf.PublicKeyAlgorithm]
+	if isRSAPSS(cert) {
+		h := oid.DigestAlgorithmToHash[digestAlgorithm.Algorithm.String()]
+		signatureAlgorithm, signerOpts, err = newPSS(h, cert.PublicKey.(*rsa.PublicKey))
+	}
 	if !ok {
 		return errors.New("unsupported certificate public key algorithm")
 	}
@@ -155,6 +161,11 @@ func (sd *SignedData) AddSignerInfo(keypPair tls.Certificate) (err error) {
 	if err != nil {
 		return err
 	}
+
+	if !isRSAPSS(cert) {
+		signerOpts = hash
+	}
+
 	md := hash.New()
 	if _, err = md.Write(content); err != nil {
 		return err
@@ -174,6 +185,7 @@ func (sd *SignedData) AddSignerInfo(keypPair tls.Certificate) (err error) {
 		return err
 	}
 	si.SignedAttrs = append(si.SignedAttrs, mdAttr, ctAttr, sTAttr)
+	si.SignedAttrs = append(si.SignedAttrs, attrs...)
 
 	sm, err := asn.MarshalWithParams(si.SignedAttrs, `set`)
 	if err != nil {
@@ -184,7 +196,7 @@ func (sd *SignedData) AddSignerInfo(keypPair tls.Certificate) (err error) {
 	if _, errr := smd.Write(sm); errr != nil {
 		return errr
 	}
-	if si.Signature, err = signer.Sign(rand.Reader, smd.Sum(nil), hash); err != nil {
+	if si.Signature, err = signer.Sign(rand.Reader, smd.Sum(nil), signerOpts); err != nil {
 		return err
 	}
 
@@ -384,7 +396,11 @@ func (sd *SignedData) Verify(Opts x509.VerifyOptions, detached []byte) (chains [
 		if err != nil {
 			return
 		}
-		err = cert.CheckSignature(sigAlg, signedMessage, signer.Signature)
+		switch signer.SignatureAlgorithm.Algorithm.String() {
+		case oid.SignatureAlgorithmRSASSAPSS.String():
+		default:
+			err = cert.CheckSignature(sigAlg, signedMessage, signer.Signature)
+		}
 		if err != nil {
 			return
 		}

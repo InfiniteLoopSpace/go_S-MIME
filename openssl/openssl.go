@@ -25,8 +25,15 @@ func Encrypt(in []byte, cert *x509.Certificate, opts ...string) (der []byte, err
 	pem.Encode(tmpKey, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
 
 	param := []string{SMIME, "-encrypt", "-aes128"}
-	param = append(param, opts...)
-	param = append(param, tmpKey.Name())
+	if SMIME == "smime" {
+		// For smime arguments can not be passed after the keyfile
+		param = append(param, opts...)
+		param = append(param, tmpKey.Name())
+	} else {
+		// Keyots have to be passed after the key
+		param = append(param, "-recip", tmpKey.Name())
+		param = append(param, opts...)
+	}
 	der, err = openssl(in, param...)
 
 	return
@@ -76,9 +83,8 @@ func SignDetached(in []byte, cert *x509.Certificate, key crypto.PrivateKey, inte
 		pem.Encode(tmpInterm, &pem.Block{Type: "CERTIFICATE", Bytes: i.Raw})
 	}
 
-	param := []string{SMIME, "-sign", "-nodetach"}
+	param := []string{SMIME, "-sign", "-nodetach", "-signer", tmpCert.Name(), "-inkey", tmpKey.Name(), "-certfile", tmpInterm.Name()}
 	param = append(param, opts...)
-	param = append(param, []string{"-signer", tmpCert.Name(), "-inkey", tmpKey.Name(), "-certfile", tmpInterm.Name()}...)
 	plain, err = openssl(in, param...)
 
 	return

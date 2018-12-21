@@ -22,6 +22,7 @@ type configuration struct {
 	subject               *pkix.Name
 	issuer                *Identity
 	nextSN                *int64
+	signatureAlgrotim     x509.SignatureAlgorithm
 	priv                  *crypto.Signer
 	isCA                  bool
 	notBefore             *time.Time
@@ -33,6 +34,7 @@ type configuration struct {
 func (c *configuration) generate() *Identity {
 	templ := &x509.Certificate{
 		Subject:               c.getSubject(),
+		SignatureAlgorithm:    c.signatureAlgrotim,
 		IsCA:                  c.isCA,
 		BasicConstraintsValid: true,
 		NotAfter:              c.getNotAfter(),
@@ -192,6 +194,13 @@ func NextSerialNumber(value int64) Option {
 func PrivateKey(value crypto.Signer) Option {
 	return func(c *configuration) {
 		c.priv = &value
+	}
+}
+
+// SignatureAlgorithm is an Option for setting the signature algorithm.
+func SignatureAlgorithm(value x509.SignatureAlgorithm) Option {
+	return func(c *configuration) {
+		c.signatureAlgrotim = value
 	}
 }
 

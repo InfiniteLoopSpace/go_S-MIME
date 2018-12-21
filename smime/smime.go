@@ -6,10 +6,14 @@ package smime
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/base64"
 	"errors"
 	"log"
 	"strings"
+
+	"github.com/InfiniteLoopSpace/go_S-MIME/oid"
 
 	"github.com/InfiniteLoopSpace/go_S-MIME/b64"
 
@@ -23,6 +27,26 @@ type SMIME struct {
 	CMS *cms.CMS
 }
 
+var oidsmimeCapabilities = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 15}
+
+//SMIMECapability ::= SEQUENCE {
+//capabilityID OBJECT IDENTIFIER,
+//parameters ANY DEFINED BY capabilityID OPTIONAL }
+
+//SMIMECapabilities ::= SEQUENCE OF SMIMECapability
+
+func (smime *SMIME) addSMIMECapabilitesAttr() (err error) {
+
+	var smimeCapabilities []pkix.AlgorithmIdentifier
+
+	smimeCapabilities = append(smimeCapabilities, pkix.AlgorithmIdentifier{Algorithm: oid.EncryptionAlgorithmAES128CBC})
+	smimeCapabilities = append(smimeCapabilities, pkix.AlgorithmIdentifier{Algorithm: oid.AEADChaCha20Poly1305})
+
+	err = smime.CMS.AddAttribute(oidsmimeCapabilities, smimeCapabilities)
+
+	return
+}
+
 // New create a new instance of SMIME with given keyPairs.
 func New(keyPair ...tls.Certificate) (smime *SMIME, err error) {
 	CMS, err := cms.New(keyPair...)
@@ -31,6 +55,10 @@ func New(keyPair ...tls.Certificate) (smime *SMIME, err error) {
 	}
 
 	smime = &SMIME{CMS}
+	err = smime.addSMIMECapabilitesAttr()
+	if err != nil {
+		return
+	}
 
 	return
 }
